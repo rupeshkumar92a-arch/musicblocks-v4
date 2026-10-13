@@ -137,11 +137,9 @@ export function Workspace({ config }: WorkspaceViewProps) {
         }
       }
 
+      // No history commit here: `discardTower` takes the snapshot itself, for both branches above,
+      // and a second one would leave an identical entry that the first undo steps onto.
       store.clearSelection();
-
-      import('@/stores/history').then(({ useWorkspaceHistoryStore }) => {
-        useWorkspaceHistoryStore.getState().commit();
-      });
     };
 
     window.addEventListener('keydown', handleKeyDown);

@@ -305,6 +305,51 @@ describe('Workspace', () => {
     expect(Object.keys(useWorkspaceStore.getState().towers)).toEqual(['keyboard-nested']);
   });
 
+  it.each([
+    ['a root brick', 'Delete', 'outer'],
+    ['a nested brick', 'Backspace', 'inner'],
+  ])(
+    'takes one history entry to delete %s with %s, so one undo and one redo cover it',
+    async (_, key, part) => {
+      const { useWorkspaceHistoryStore } = await import('@/stores/history');
+      const { container } = render(<Workspace config={{ palette: paletteConfig }} />);
+      const id = `undo-${part}`;
+
+      act(() => {
+        useWorkspaceStore.getState().createTower(makeNestingTower(id));
+      });
+
+      // The history store is module-global, so start it from this test's canvas alone.
+      const history = useWorkspaceHistoryStore.getState();
+      history.clear();
+      history.init();
+      const before = useWorkspaceHistoryStore.getState().history[0];
+
+      fireEvent.click(container.querySelector(`[data-id="${id}-${part}"]`) as HTMLElement);
+      fireEvent.keyDown(window, { key });
+
+      // The commit lands behind a dynamic import; wait for it, then give a second one time to land.
+      await vi.waitFor(() => expect(useWorkspaceHistoryStore.getState().history).toHaveLength(2));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(useWorkspaceHistoryStore.getState().history).toHaveLength(2);
+      const after = useWorkspaceHistoryStore.getState().history[1];
+
+      act(() => {
+        useWorkspaceHistoryStore.getState().undo();
+      });
+      expect(useWorkspaceHistoryStore.getState().currentIndex).toBe(0);
+      expect(useWorkspaceStore.getState().exportWorkspace()).toEqual(before);
+
+      act(() => {
+        useWorkspaceHistoryStore.getState().redo();
+      });
+      expect(useWorkspaceHistoryStore.getState().currentIndex).toBe(1);
+      expect(useWorkspaceStore.getState().exportWorkspace()).toEqual(after);
+
+      history.clear();
+    },
+  );
+
   it('leaves the selection alone while the user types in a brick input', () => {
     const { container } = render(<Workspace config={{ palette: paletteConfig }} />);
 
